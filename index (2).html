@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>El Circuito del Comi</title>
+<link rel="apple-touch-icon" href="/icono_comi.png">
+<link rel="icon" href="/icono_comi.png">
+<link rel="manifest" href="/manifest.json">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'DM Sans', sans-serif; background: #f9fafb; }
+.app { max-width: 480px; margin: 0 auto; background: white; min-height: 100vh; }
+.logo-bar { background: #27500A; padding: 18px 20px 14px; text-align: center; }
+.logo-name { font-family: 'DM Serif Display', serif; font-size: 24px; color: #C0DD97; }
+.logo-name em { color: #FAC775; font-style: italic; }
+.logo-season { font-size: 11px; color: #9FE1CB; letter-spacing: 0.12em; text-transform: uppercase; margin-top: 2px; }
+.nav { display: flex; border-bottom: 1px solid #f3f4f6; overflow-x: auto; }
+.nav::-webkit-scrollbar { display: none; }
+.nav-btn { flex: 1; min-width: 60px; padding: 10px 8px 8px; text-align: center; font-size: 11px; color: #9ca3af; cursor: pointer; border-bottom: 2px solid transparent; background: none; border-top: none; border-left: none; border-right: none; font-family: 'DM Sans', sans-serif; white-space: nowrap; }
+.nav-btn.active { color: #3B6D11; border-bottom-color: #639922; font-weight: 500; }
+.nav-icon { display: block; font-size: 16px; margin-bottom: 2px; }
+.screen { display: none; padding: 16px; }
+.screen.active { display: block; }
+.section-label { font-size: 11px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: #9ca3af; margin-bottom: 10px; margin-top: 18px; }
+.section-label:first-child { margin-top: 0; }
+.card { border: 1px solid #f3f4f6; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; background: white; }
+.card.clickable { cursor: pointer; transition: background 0.15s; }
+.card.clickable:hover { background: #f9fafb; }
+.row { display: flex; align-items: center; gap: 10px; }
+.flex1 { flex: 1; }
+.medal { font-size: 20px; width: 28px; text-align: center; }
+.pos-num { width: 28px; text-align: center; font-size: 15px; font-weight: 500; color: #6b7280; }
+.player-name { font-size: 15px; font-weight: 500; }
+.pts { font-size: 13px; color: #6b7280; }
+.var-up { color: #3B6D11; font-size: 13px; }
+.var-down { color: #A32D2D; font-size: 13px; }
+.var-eq { color: #9ca3af; font-size: 13px; }
+.match-score { color: #1D9E75; font-weight: 500; font-size: 13px; text-align: center; }
+.match-meta { display: flex; justify-content: space-between; font-size: 11px; color: #9ca3af; margin-top: 4px; }
+.match-winner { color: #3B6D11; font-weight: 500; }
+.streak-icon { width: 32px; height: 32px; background: #EAF3DE; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+.inactive-days { font-family: 'DM Serif Display', serif; font-size: 22px; color: #BA7517; min-width: 44px; text-align: center; }
+.header-bar { background: #27500A; color: #C0DD97; padding: 14px 16px; display: flex; align-items: center; gap: 12px; }
+.back-btn { background: none; border: none; color: #C0DD97; font-size: 20px; cursor: pointer; opacity: 0.8; padding: 0; }
+.header-title { font-family: 'DM Serif Display', serif; font-size: 18px; flex: 1; }
+.header-sub { font-size: 11px; opacity: 0.65; text-transform: uppercase; letter-spacing: 0.08em; }
+.h2h-stats { display: grid; grid-template-columns: 1fr auto 1fr; padding: 16px; border-bottom: 1px solid #f3f4f6; }
+.h2h-num { font-family: 'DM Serif Display', serif; font-size: 36px; line-height: 1; }
+.stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+.stat-box { border: 1px solid #f3f4f6; border-radius: 10px; padding: 12px; text-align: center; }
+.stat-num { font-family: 'DM Serif Display', serif; font-size: 24px; color: #27500A; }
+.stat-label { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+.rival-record { font-family: 'DM Serif Display', serif; font-size: 14px; }
+.admin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.admin-btn { border: 1px solid #f3f4f6; border-radius: 12px; padding: 20px 12px; display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; font-family: 'DM Sans', sans-serif; cursor: pointer; background: white; transition: background 0.15s; }
+.admin-btn:hover { background: #f9fafb; }
+.admin-icon { font-size: 24px; }
+.form-label { font-size: 12px; color: #9ca3af; display: block; margin-bottom: 4px; }
+.form-group { margin-bottom: 14px; }
+.input { width: 100%; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 12px; font-size: 14px; font-family: 'DM Sans', sans-serif; color: #111; background: white; }
+.input:focus { outline: none; border-color: #639922; }
+.set-row { display: flex; align-items: center; gap: 8px; }
+.set-input { width: 56px; text-align: center; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px; font-size: 16px; font-weight: 500; font-family: 'DM Sans', sans-serif; }
+.sep { color: #d1d5db; font-size: 18px; }
+.submit-btn { width: 100%; padding: 12px; background: #27500A; color: #C0DD97; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; font-family: 'DM Sans', sans-serif; margin-top: 8px; }
+.submit-btn:hover { opacity: 0.9; }
+.msg { padding: 10px 12px; border-radius: 8px; font-size: 13px; margin-bottom: 14px; }
+.msg.ok { background: #EAF3DE; color: #27500A; }
+.msg.err { background: #FCEBEB; color: #A32D2D; }
+.divider { height: 1px; background: #f3f4f6; margin: 14px 0; }
+.back-link { font-size: 13px; color: #3B6D11; cursor: pointer; margin-bottom: 16px; display: inline-block; }
+.victory { color: #3B6D11; font-weight: 500; }
+.defeat { color: #A32D2D; }
+.draw { color: #BA7517; }
+.incompleto-box { background: #FAEEDA; border-radius: 8px; padding: 12px; margin-top: 8px; }
+.loading { text-align: center; padding: 40px; color: #9ca3af; font-size: 14px; }
+select.input { cursor: pointer; }
+.fotos-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.foto-thumb { position: relative; aspect-ratio: 1; overflow: hidden; border-radius: 6px; cursor: pointer; background: #f3f4f6; }
+.foto-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.foto-upload-btn { width: 100%; padding: 12px; background: #27500A; color: #C0DD97; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; font-family: 'DM Sans', sans-serif; margin-bottom: 16px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.foto-upload-btn:hover { opacity: 0.9; }
+.lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+.lightbox img { max-width: 100%; max-height: 75vh; border-radius: 8px; object-fit: contain; }
+.lightbox-caption { color: #f3f4f6; font-size: 14px; margin-top: 14px; text-align: center; max-width: 480px; }
+.lightbox-close { position: absolute; top: 18px; right: 20px; background: none; border: none; color: #f3f4f6; font-size: 28px; cursor: pointer; opacity: 0.8; }
+.lightbox-date { color: #9ca3af; font-size: 11px; margin-top: 6px; text-transform: uppercase; letter-spacing: 0.08em; }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+<div id="root"></div>
+</div>
+<script>
+const SUPABASE_URL = 'https://ubpytopyxwqaokbdlosw.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVicHl0b3B5eHdxYW9rYmRsb3N3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5Nzg5MzYsImV4cCI6MjA5NjU1NDkzNn0.zRU138jXeZme3hq2nzPXiNeYcn5Irghbwm59G8SwbaA';
+const ADMIN_PASS = 'comi2025';
+const MEDALS = ['🥇','🥈','🥉'];
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const TABLA = [
+{partido:25,set:10,bonus:5},
+{partido:15,set:6,bonus:3},
+{partido:10,set:4,bonus:2},
+{partido:8,set:3,bonus:2},
+{partido:5,set:2,bonus:1},
+{partido:3,set:1,bonus:1},
+];
+function getPts(pos) { return TABLA[Math.min(pos-1,5)]; }
+let state = { screen: 'home', tab: 'home', playerTab: 'rivals', currentPlayer: null, currentH2H: null, adminVista: 'menu', authed: false, fotosAuthed: false, lightboxFoto: null };
+async function getRanking() {
+const {data: jugadores} = await sb.from('jugadores').select('*').neq('estado','traidor');
+if (!jugadores) return [];
+const map = {};
+jugadores.forEach(j => map[j.id] = 0);
+const {data: pts} = await sb.from('puntos_partido').select('jugador_id,puntos');
+pts?.forEach(p => { if (map[p.jugador_id]!==undefined) map[p.jugador_id]+=p.puntos; });
+const {data: aj} = await sb.from('ajustes').select('jugador_id,puntos');
+aj?.forEach(a => { if (map[a.jugador_id]!==undefined) map[a.jugador_id]+=a.puntos; });
+return jugadores.map(j=>({jugador:j,puntos:map[j.id]})).sort((a,b)=>b.puntos-a.puntos).map((e,i)=>({...e,pos:i+1}));
+}
+async function render() {
+const root = document.getElementById('root');
+root.innerHTML = '<div class="loading">Cargando...</div>';
+if (state.screen === 'home') {
+const ranking = await getRanking();
+const {data: partidos} = await sb.from('partidos').select('*,j1:jugador1_id(id,nombre),j2:jugador2_id(id,nombre),g:ganador_id(id,nombre)').order('fecha',{ascending:false}).limit(3);
+let rachaHTML = '';
+const {data: allPartidos} = await sb.from('partidos').select('*,j1:jugador1_id(id,nombre),j2:jugador2_id(id,nombre)').in('estado',['finalizado','empate']).order('fecha',{ascending:false});
+const rachas = {};
+const done = {};
+if (allPartidos) {
+for (const p of allPartidos) {
+for (const j of [p.j1, p.j2]) {
+if (!j || done[j.id]) continue;
+const gano = p.ganador_id === j.id;
+const empato = p.estado === 'empate';
+if (!rachas[j.id]) {
+if (gano) rachas[j.id] = {n:1,tipo:'victorias',nombre:j.nombre};
+else if (empato) rachas[j.id] = {n:1,tipo:'invicto',nombre:j.nombre};
+else done[j.id] = true;
+} else {
+if (gano||empato) rachas[j.id].n++;
+else done[j.id] = true;
+}
+}
+}
+}
+const rachasList = Object.values(rachas).filter(r=>r.n>=2).slice(0,4);
+const inactivos = [];
+for (const entry of ranking) {
+const {data: ul} = await sb.from('partidos').select('fecha').or(`jugador1_id.eq.${entry.jugador.id},jugador2_id.eq.${entry.jugador.id}`).order('fecha',{ascending:false}).limit(1).single();
+if (ul) {
+const dias = Math.floor((Date.now()-new Date(ul.fecha).getTime())/86400000);
+if (dias>14) inactivos.push({jugador:entry.jugador,dias});
+}
+}
+root.innerHTML = `
+${logoBar()}
+${navBar()}
+<div id="screen-home" class="screen active">
+<div class="section-label">Ranking</div>
+${ranking.map((e,i)=>`
+<div class="card clickable row" onclick="openPlayer('${e.jugador.id}')">
+<div class="${i<3?'medal':'pos-num'}">${i<3?MEDALS[i]:e.pos}</div>
+<div class="flex1 player-name">${e.jugador.nombre}</div>
+<div class="pts">${e.puntos} pts</div>
+</div>`).join('')}
+<div class="section-label">Últimos partidos</div>
+${(partidos||[]).map(p=>`
+<div class="card">
+<div class="row">
+<span class="flex1" style="font-weight:500;font-size:14px">${p.j1?.nombre}</span>
+<span class="match-score">${p.sets.map(s=>`${s.j1}-${s.j2}`).join(' ')}</span>
+<span class="flex1" style="font-weight:500;font-size:14px;text-align:right">${p.j2?.nombre}</span>
+</div>
+<div class="match-meta">
+<span>${new Date(p.fecha).toLocaleDateString('es-AR')}</span>
+<span class="match-winner">${p.estado==='empate'?'Empate':p.g?.nombre+' ganó'}</span>
+</div>
+</div>`).join('')}
+${rachasList.length?`<div class="section-label">Rachas</div>${rachasList.map(r=>`
+<div class="card row">
+<div class="streak-icon">🔥</div>
+<div>
+<div style="font-size:14px;font-weight:500">${r.nombre}</div>
+<div style="font-size:12px;color:#9ca3af">${r.n} ${r.tipo==='victorias'?'victorias seguidas':'partidos sin perder'}</div>
+</div>
+</div>`).join('')}`:''}
+${inactivos.length?`<div class="section-label">Inactividad</div>${inactivos.map(r=>`
+<div class="card row">
+<div class="inactive-days">${r.dias}d</div>
+<div>
+<div style="font-size:14px;font-weight:500">${r.jugador.nombre}</div>
+<div style="font-size:12px;color:#9ca3af">hace ${r.dias} días que no juega</div>
+</div>
+</div>`).join('')}`:''}
+</div>
+<div id="screen-ranking" class="screen">
+<div class="section-label">Ranking · Temporada 2025</div>
+${ranking.map((e,i)=>`
+<div class="card clickable row" onclick="openPlayer('${e.jugador.id}')">
+<div class="${i<3?'medal':'pos-num'}">${i<3?MEDALS[i]:e.pos}</div>
+<div class="flex1 player-name">${e.jugador.nombre}</div>
+<div class="pts">${e.puntos} pts</div>
+</div>`).join('')}
+</div>
+<div id="screen-partidos" class="screen">
+<div class="section-label">Historial de partidos</div>
+<div id="partidos-list"><div class="loading">Cargando...</div></div>
+</div>
+<div id="screen-ajustes" class="screen">
+<div class="section-label">Historial de ajustes</div>
+<div id="ajustes-list"><div class="loading">Cargando...</div></div>
+</div>
+<div id="screen-fotos" class="screen">
+<div id="fotos-content"></div>
+</div>
+<div id="screen-admin" class="screen">
+<div id="admin-content"></div>
+</div>`;
+setActiveTab(state.tab);
+if (state.tab==='partidos') loadPartidos();
+if (state.tab==='ajustes') loadAjustes();
+if (state.tab==='fotos') renderFotos();
+if (state.tab==='admin') renderAdmin();
+} else if (state.screen === 'player') {
+await renderPlayer();
+} else if (state.screen === 'h2h') {
+await renderH2H();
+}
+}
+function logoBar() {
+return `<div class="logo-bar"><div class="logo-name">El Circuito <em>del Comi</em></div><div class="logo-season">Temporada 2025</div></div>`;
+}
+function navBar() {
+const tabs = [{id:'home',icon:'⌂',label:'Inicio'},{id:'ranking',icon:'#',label:'Ranking'},{id:'partidos',icon:'◎',label:'Partidos'},{id:'ajustes',icon:'⇅',label:'Ajustes'},{id:'fotos',icon:'▦',label:'Fotos'},{id:'admin',icon:'⚙',label:'Admin'}];
+return `<nav class="nav">${tabs.map(t=>`<button class="nav-btn${state.tab===t.id?' active':''}" onclick="switchTab('${t.id}')"><span class="nav-icon">${t.icon}</span>${t.label}</button>`).join('')}</nav>`;
+}
+function setActiveTab(tab) {
+document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+const el = document.getElementById('screen-'+tab);
+if (el) el.classList.add('active');
+}
+async function switchTab(tab) {
+state.tab = tab;
+state.screen = 'home';
+document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+document.querySelectorAll('.nav-btn').forEach(b=>{ if(b.textContent.includes(tabLabel(tab))) b.classList.add('active'); });
+setActiveTab(tab);
+if (tab==='partidos') await loadPartidos();
+if (tab==='ajustes') await loadAjustes();
+if (tab==='fotos') await renderFotos();
+if (tab==='admin') renderAdmin();
+}
+function tabLabel(tab) { return {home:'Inicio',ranking:'Ranking',partidos:'Partidos',ajustes:'Ajustes',fotos:'Fotos',admin:'Admin'}[tab]; }
+async function loadPartidos() {
+const el = document.getElementById('partidos-list');
+if (!el) return;
+const {data} = await sb.from('partidos').select('*,j1:jugador1_id(id,nombre),j2:jugador2_id(id,nombre),g:ganador_id(id,nombre),puntos_partido(jugador_id,puntos)').order('fecha',{ascending:false});
+el.innerHTML = (data||[]).length===0?'<p style="font-size:13px;color:#9ca3af">Sin partidos aún</p>':(data||[]).map(p=>{
+const pg = p.puntos_partido?.find(pp=>pp.jugador_id===p.ganador_id);
+return `<div class="card">
+<div class="row" style="font-size:14px;font-weight:500;margin-bottom:4px">
+<span class="flex1">${p.j1?.nombre}</span>
+<span class="match-score">${p.sets.map(s=>`${s.j1}-${s.j2}`).join(' ')}</span>
+<span class="flex1" style="text-align:right">${p.j2?.nombre}</span>
+</div>
+<div class="match-meta">
+<span>${new Date(p.fecha).toLocaleDateString('es-AR')}</span>
+<span>${p.estado==='incompleto'?'<span style="color:#BA7517">Incompleto</span>':p.estado==='empate'?'<span style="color:#BA7517">Empate</span>':pg?`<span class="victory">${p.g?.nombre} +${pg.puntos}</span>`:''}</span>
+</div>
+${p.comentario?`<div style="font-size:11px;color:#9ca3af;margin-top:4px;font-style:italic">${p.comentario}</div>`:''}
+</div>`;
+}).join('');
+}
+async function loadAjustes() {
+const el = document.getElementById('ajustes-list');
+if (!el) return;
+const {data} = await sb.from('ajustes').select('*,jugador:jugador_id(id,nombre)').order('fecha',{ascending:false});
+el.innerHTML = (data||[]).length===0?'<p style="font-size:13px;color:#9ca3af">Sin ajustes aún</p>':(data||[]).map(a=>`
+<div class="card">
+<div class="row">
+<span class="flex1" style="font-weight:500;font-size:14px">${a.jugador?.nombre}</span>
+<span style="font-weight:500;font-size:16px;color:${a.puntos>=0?'#3B6D11':'#A32D2D'}">${a.puntos>=0?'+':''}${a.puntos} pts</span>
+</div>
+<div class="match-meta"><span>${new Date(a.fecha).toLocaleDateString('es-AR')}</span><span>${a.motivo}</span></div>
+</div>`).join('');
+}
+async function openPlayer(id) {
+state.screen = 'player';
+state.currentPlayer = id;
+state.playerTab = 'rivals';
+await renderPlayer();
+}
+async function renderPlayer() {
+const root = document.getElementById('root');
+const id = state.currentPlayer;
+const {data: jugador} = await sb.from('jugadores').select('*').eq('id',id).single();
+if (!jugador) return;
+const ranking = await getRanking();
+const entry = ranking.find(e=>e.jugador.id===id);
+const pos = entry?.pos||0;
+const totalPts = entry?.puntos||0;
+const {data: partidos} = await sb.from('partidos').select('*,j1:jugador1_id(id,nombre),j2:jugador2_id(id,nombre),g:ganador_id(id,nombre)').or(`jugador1_id.eq.${id},jugador2_id.eq.${id}`).order('fecha',{ascending:false}).limit(20);
+const {data: rivales} = await sb.from('jugadores').select('id,nombre').neq('id',id).neq('estado','traidor');
+const rec = {};
+rivales?.forEach(r=>{ rec[r.id]={w:0,l:0,e:0,nombre:r.nombre,id:r.id}; });
+partidos?.forEach(p=>{
+const rid = p.jugador1_id===id?p.jugador2_id:p.jugador1_id;
+if (!rec[rid]) return;
+if (p.estado==='empate') rec[rid].e++;
+else if (p.ganador_id===id) rec[rid].w++;
+else rec[rid].l++;
+});
+const tabContent = state.playerTab==='rivals'
+? Object.values(rec).map(r=>`
+<div class="card clickable row" onclick="openH2H('${id}','${r.id}')">
+<div class="flex1" style="font-size:14px;font-weight:500">${r.nombre}</div>
+<div class="rival-record"><span style="color:#3B6D11">${r.w}</span>-<span style="color:#A32D2D">${r.l}</span>-<span style="color:#BA7517">${r.e}</span></div>
+<span style="color:#d1d5db;margin-left:4px">›</span>
+</div>`).join('')
+: (partidos||[]).map(p=>{
+const esJ1 = p.jugador1_id===id;
+const rival = esJ1?p.j2:p.j1;
+const gano = p.ganador_id===id;
+const empato = p.estado==='empate';
+return `<div class="card">
+<div class="row" style="font-size:14px;font-weight:500;margin-bottom:4px">
+<span class="flex1 victory">${jugador.nombre}</span>
+<span class="match-score">${p.sets.map(s=>esJ1?`${s.j1}-${s.j2}`:`${s.j2}-${s.j1}`).join(' ')}</span>
+<span class="flex1" style="text-align:right">${rival?.nombre}</span>
+</div>
+<div class="match-meta">
+<span>${new Date(p.fecha).toLocaleDateString('es-AR')}</span>
+<span class="${gano?'victory':empato?'draw':'defeat'}">${gano?'Victoria':empato?'Empate':'Derrota'}</span>
+</div>
+</div>`;
+}).join('');
+root.innerHTML = `
+<div class="header-bar">
+<button class="back-btn" onclick="goHome()">←</button>
+<div class="flex1">
+<div class="header-title">${jugador.nombre}</div>
+<div class="header-sub">#${pos} · ${totalPts} pts</div>
+</div>
+</div>
+<div style="padding:16px">
+<div class="stats-grid">
+<div class="stat-box"><div class="stat-num">#${pos}</div><div class="stat-label">Posición</div></div>
+<div class="stat-box"><div class="stat-num">${totalPts}</div><div class="stat-label">Puntos</div></div>
+<div class="stat-box"><div class="stat-num">${(partidos||[]).length}</div><div class="stat-label">Partidos</div></div>
+</div>
+<div style="display:flex;gap:0;margin-bottom:14px;border-bottom:1px solid #f3f4f6">
+<button onclick="switchPlayerTab('rivals')" style="flex:1;padding:10px;font-size:12px;text-align:center;cursor:pointer;background:none;border:none;border-bottom:2px solid ${state.playerTab==='rivals'?'#639922':'transparent'};color:${state.playerTab==='rivals'?'#3B6D11':'#9ca3af'};font-weight:${state.playerTab==='rivals'?'500':'400'};font-family:'DM Sans',sans-serif">vs Rivales</button>
+<button onclick="switchPlayerTab('matches')" style="flex:1;padding:10px;font-size:12px;text-align:center;cursor:pointer;background:none;border:none;border-bottom:2px solid ${state.playerTab==='matches'?'#639922':'transparent'};color:${state.playerTab==='matches'?'#3B6D11':'#9ca3af'};font-weight:${state.playerTab==='matches'?'500':'400'};font-family:'DM Sans',sans-serif">Partidos</button>
+</div>
+${tabContent}
+</div>`;
+}
+async function switchPlayerTab(tab) {
+state.playerTab = tab;
+await renderPlayer();
+}
+async function openH2H(id1, id2) {
+state.screen = 'h2h';
+state.currentH2H = {id1, id2};
+await renderH2H();
+}
+async function renderH2H() {
+const root = document.getElementById('root');
+const {id1,id2} = state.currentH2H;
+const [{data:j1},{data:j2}] = await Promise.all([
+sb.from('jugadores').select('*').eq('id',id1).single(),
+sb.from('jugadores').select('*').eq('id',id2).single(),
+]);
+const {data:partidos} = await sb.from('partidos').select('*,j1:jugador1_id(id,nombre),j2:jugador2_id(id,nombre),g:ganador_id(id,nombre)').or(`and(jugador1_id.eq.${id1},jugador2_id.eq.${id2}),and(jugador1_id.eq.${id2},jugador2_id.eq.${id1})`).order('fecha',{ascending:false});
+let w1=0,w2=0,e=0;
+partidos?.forEach(p=>{ if(p.estado==='empate')e++; else if(p.ganador_id===id1)w1++; else if(p.ganador_id===id2)w2++; });
+root.innerHTML = `
+<div class="header-bar">
+<button class="back-btn" onclick="history.back(); renderPlayer()">←</button>
+<div class="flex1" style="text-align:center">
+<div class="header-title">${j1?.nombre} vs ${j2?.nombre}</div>
+<div class="header-sub">Cara a cara</div>
+</div>
+</div>
+<div class="h2h-stats">
+<div style="text-align:center"><div class="h2h-num" style="color:#3B6D11">${w1}</div><div style="font-size:11px;color:#9ca3af;margin-top:4px">Victorias ${j1?.nombre}</div></div>
+<div style="text-align:center;display:flex;flex-direction:column;justify-content:center"><div style="font-family:'DM Serif Display',serif;font-size:24px;color:#BA7517">${e}</div><div style="font-size:11px;color:#9ca3af">Empate${e!==1?'s':''}</div></div>
+<div style="text-align:center"><div class="h2h-num" style="color:#A32D2D">${w2}</div><div style="font-size:11px;color:#9ca3af;margin-top:4px">Victorias ${j2?.nombre}</div></div>
+</div>
+<div style="padding:16px">
+<div class="section-label">Historial</div>
+${(partidos||[]).length===0?'<p style="font-size:13px;color:#9ca3af">Sin enfrentamientos aún</p>':(partidos||[]).map(p=>{
+const esJ1 = p.jugador1_id===id1;
+return `<div class="card">
+<div class="row" style="font-size:14px;font-weight:500;margin-bottom:4px">
+<span class="flex1">${j1?.nombre}</span>
+<span class="match-score">${p.sets.map(s=>esJ1?`${s.j1}-${s.j2}`:`${s.j2}-${s.j1}`).join(' ')}</span>
+<span class="flex1" style="text-align:right">${j2?.nombre}</span>
+</div>
+<div class="match-meta"><span>${new Date(p.fecha).toLocaleDateString('es-AR')}</span><span class="match-winner">${p.estado==='empate'?'Empate':p.g?.nombre+' ganó'}</span></div>
+</div>`;
+}).join('')}
+</div>`;
+}
+function goHome() {
+state.screen = 'home';
+state.tab = 'home';
+render();
+}
+async function renderFotos() {
+const el = document.getElementById('fotos-content');
+if (!el) return;
+el.innerHTML = '<div class="loading">Cargando...</div>';
+const {data: fotos} = await sb.from('fotos').select('*').order('fecha',{ascending:false});
+const uploadSection = state.fotosAuthed ? `
+<button class="foto-upload-btn" onclick="document.getElementById('foto-file').click()">📷 Subir foto</button>
+<input type="file" id="foto-file" accept="image/*" style="display:none" onchange="subirFoto(this.files[0])">
+<div id="foto-upload-msg"></div>
+` : `
+<button class="foto-upload-btn" onclick="pedirPassFotos()">📷 Subir foto</button>
+`;
+el.innerHTML = `
+${uploadSection}
+${(fotos||[]).length===0?'<p style="font-size:13px;color:#9ca3af">Sin fotos aún</p>':`<div class="fotos-grid">${fotos.map((f,i)=>`
+<div class="foto-thumb" onclick="abrirLightbox(${i})">
+<img src="${f.url}" loading="lazy">
+</div>`).join('')}</div>`}
+`;
+window._fotosCache = fotos||[];
+}
+function pedirPassFotos() {
+const val = prompt('Contraseña de admin:');
+if (val===ADMIN_PASS) { state.fotosAuthed = true; renderFotos(); }
+else if (val!==null) { alert('Contraseña incorrecta'); }
+}
+async function subirFoto(file) {
+if (!file) return;
+const msgEl = document.getElementById('foto-upload-msg');
+msgEl.innerHTML = '<div class="msg ok">Subiendo...</div>';
+const ext = file.name.split('.').pop();
+const path = `${Date.now()}_${Math.random().toString(36).slice(2,8)}.${ext}`;
+const {error: upErr} = await sb.storage.from('fotos').upload(path, file);
+if (upErr) { msgEl.innerHTML = `<div class="msg err">Error: ${upErr.message}</div>`; return; }
+const {data: pub} = sb.storage.from('fotos').getPublicUrl(path);
+const caption = prompt('Comentario (opcional):') || null;
+const {error: insErr} = await sb.from('fotos').insert({url: pub.publicUrl, path, caption, fecha: new Date().toISOString()});
+if (insErr) { msgEl.innerHTML = `<div class="msg err">Error: ${insErr.message}</div>`; return; }
+msgEl.innerHTML = '<div class="msg ok">✓ Foto subida</div>';
+document.getElementById('foto-file').value = '';
+setTimeout(()=>renderFotos(),800);
+}
+function abrirLightbox(i) {
+const foto = window._fotosCache[i];
+if (!foto) return;
+state.lightboxFoto = foto;
+const div = document.createElement('div');
+div.className = 'lightbox';
+div.id = 'lightbox';
+div.onclick = (e) => { if(e.target.id==='lightbox') cerrarLightbox(); };
+div.innerHTML = `
+<button class="lightbox-close" onclick="cerrarLightbox()">×</button>
+<img src="${foto.url}">
+${foto.caption?`<div class="lightbox-caption">${foto.caption}</div>`:''}
+<div class="lightbox-date">${new Date(foto.fecha).toLocaleDateString('es-AR')}</div>
+`;
+document.body.appendChild(div);
+}
+function cerrarLightbox() {
+const el = document.getElementById('lightbox');
+if (el) el.remove();
+state.lightboxFoto = null;
+}
+function renderAdmin() {
+const el = document.getElementById('admin-content');
+if (!el) return;
+if (!state.authed) {
+el.innerHTML = `
+<div style="padding:40px 24px;text-align:center">
+<div style="font-size:48px;margin-bottom:12px">🔒</div>
+<div style="font-family:'DM Serif Display',serif;font-size:20px;margin-bottom:8px">Área privada</div>
+<div style="font-size:13px;color:#9ca3af;margin-bottom:20px">Ingresá la contraseña para continuar</div>
+<input type="password" id="pwd" class="input" style="max-width:240px;text-align:center" placeholder="Contraseña" onkeydown="if(event.key==='Enter')checkPwd()"/>
+<div id="pwd-err" style="font-size:12px;color:#A32D2D;margin-top:8px;display:none">Contraseña incorrecta</div>
+<button class="submit-btn" style="max-width:240px;margin-top:12px" onclick="checkPwd()">Ingresar</button>
+</div>`;
+return;
+}
+if (state.adminVista==='menu') {
+el.innerHTML = `
+<div id="admin-msg"></div>
+<div class="admin-grid">
+<button class="admin-btn" onclick="setAdminVista('partido')"><span class="admin-icon">🎾</span>Cargar partido</button>
+<button class="admin-btn" onclick="setAdminVista('ajuste')"><span class="admin-icon">⇅</span>Cargar ajuste</button>
+<button class="admin-btn" onclick="setAdminVista('eliminar')"><span class="admin-icon">🗑</span>Eliminar partido</button>
+<button class="admin-btn" onclick="setAdminVista('jugadores')"><span class="admin-icon">👥</span>Jugadores</button>
+</div>`;
+} else if (state.adminVista==='partido') {
+renderFormPartido();
+} else if (state.adminVista==='ajuste') {
+renderFormAjuste();
+} else if (state.adminVista==='eliminar') {
+renderEliminar();
+} else if (state.adminVista==='jugadores') {
+renderJugadores();
+}
+}
+function checkPwd() {
+const val = document.getElementById('pwd').value;
+if (val===ADMIN_PASS) { state.authed=true; renderAdmin(); }
+else { document.getElementById('pwd-err').style.display='block'; document.getElementById('pwd').value=''; }
+}
+function setAdminVista(v) { state.adminVista=v; renderAdmin(); }
+function showMsg(text, ok=true) {
+const el = document.getElementById('admin-msg');
+if (el) el.innerHTML = `<div class="msg ${ok?'ok':'err'}">${text}</div>`;
+}
+async function renderFormPartido() {
+const {data:jugadores} = await sb.from('jugadores').select('*').neq('estado','traidor').order('nombre');
+const opts = (jugadores||[]).map(j=>`<option value="${j.id}">${j.nombre}</option>`).join('');
+document.getElementById('admin-content').innerHTML = `
+<div id="admin-msg"></div>
+<span class="back-link" onclick="setAdminVista('menu')">← Volver</span>
+<div style="font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:16px">Cargar partido</div>
+<div class="form-group"><label class="form-label">Jugador 1</label><select id="pj1" class="input"><option value="">Seleccionar...</option>${opts}</select></div>
+<div class="form-group"><label class="form-label">Jugador 2</label><select id="pj2" class="input"><option value="">Seleccionar...</option>${opts}</select></div>
+<div class="divider"></div>
+<div class="form-group"><label class="form-label">Set 1</label><div class="set-row"><input id="s1j1" type="number" min="0" max="7" class="set-input"/><span class="sep">–</span><input id="s1j2" type="number" min="0" max="7" class="set-input"/></div></div>
+<div class="form-group"><label class="form-label">Set 2</label><div class="set-row"><input id="s2j1" type="number" min="0" max="7" class="set-input"/><span class="sep">–</span><input id="s2j2" type="number" min="0" max="7" class="set-input"/></div></div>
+<div class="form-group"><label class="form-label">Set 3 (opcional)</label><div class="set-row"><input id="s3j1" type="number" min="0" max="7" class="set-input" placeholder="-"/><span class="sep">–</span><input id="s3j2" type="number" min="0" max="7" class="set-input" placeholder="-"/></div></div>
+<div class="divider"></div>
+<div class="form-group"><label class="form-label">Fecha *</label><input id="pfecha" type="date" class="input" value="${new Date().toISOString().split('T')[0]}"/></div>
+<div class="form-group"><label class="form-label">Hora (opcional)</label><input id="phora" type="time" class="input"/></div>
+<div class="form-group"><label class="form-label">Comentario (opcional)</label><input id="pcom" type="text" class="input" placeholder="ej. final del torneo"/></div>
+<label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:8px"><input type="checkbox" id="pinc" onchange="toggleIncompleto()"/> Partido incompleto</label>
+<div id="incompleto-box" style="display:none" class="incompleto-box">
+<div style="font-size:12px;color:#BA7517;font-weight:500;margin-bottom:8px">Asignar puntos manualmente</div>
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span id="inc-j1-label" style="font-size:13px;min-width:80px">J1</span><input id="inc-j1-pts" type="number" class="set-input" placeholder="0"/><span style="font-size:12px;color:#9ca3af">pts</span></div>
+<div style="display:flex;align-items:center;gap:8px"><span id="inc-j2-label" style="font-size:13px;min-width:80px">J2</span><input id="inc-j2-pts" type="number" class="set-input" placeholder="0"/><span style="font-size:12px;color:#9ca3af">pts</span></div>
+</div>
+<button class="submit-btn" onclick="guardarPartido()">Guardar partido</button>`;
+document.getElementById('pj1').addEventListener('change', updateIncLabels);
+document.getElementById('pj2').addEventListener('change', updateIncLabels);
+function updateIncLabels() {
+const j1sel = document.getElementById('pj1');
+const j2sel = document.getElementById('pj2');
+const n1 = j1sel.options[j1sel.selectedIndex]?.text||'J1';
+const n2 = j2sel.options[j2sel.selectedIndex]?.text||'J2';
+const l1 = document.getElementById('inc-j1-label');
+const l2 = document.getElementById('inc-j2-label');
+if(l1) l1.textContent=n1;
+if(l2) l2.textContent=n2;
+}
+}
+function toggleIncompleto() {
+const checked = document.getElementById('pinc').checked;
+document.getElementById('incompleto-box').style.display = checked?'block':'none';
+}
+async function guardarPartido() {
+const j1 = document.getElementById('pj1').value;
+const j2 = document.getElementById('pj2').value;
+if (!j1||!j2||j1===j2) return showMsg('Seleccioná dos jugadores distintos',false);
+const fecha = document.getElementById('pfecha').value;
+if (!fecha) return showMsg('La fecha es obligatoria',false);
+const s1j1=document.getElementById('s1j1').value, s1j2=document.getElementById('s1j2').value;
+const s2j1=document.getElementById('s2j1').value, s2j2=document.getElementById('s2j2').value;
+const s3j1=document.getElementById('s3j1').value, s3j2=document.getElementById('s3j2').value;
+const sets=[];
+if(s1j1!==''&&s1j2!=='') sets.push({j1:parseInt(s1j1),j2:parseInt(s1j2)});
+if(s2j1!==''&&s2j2!=='') sets.push({j1:parseInt(s2j1),j2:parseInt(s2j2)});
+if(s3j1!==''&&s3j2!=='') sets.push({j1:parseInt(s3j1),j2:parseInt(s3j2)});
+if(sets.length===0) return showMsg('Ingresá al menos un set',false);
+const incompleto = document.getElementById('pinc').checked;
+const hora = document.getElementById('phora').value;
+const comentario = document.getElementById('pcom').value;
+let estado='finalizado', ganadorId=null;
+if(incompleto) {
+estado='incompleto';
+} else {
+let sj1=0,sj2=0;
+sets.forEach(s=>{if(s.j1>s.j2)sj1++;else if(s.j2>s.j1)sj2++;});
+if(sj1>sj2){estado='finalizado';ganadorId=j1;}
+else if(sj2>sj1){estado='finalizado';ganadorId=j2;}
+else estado='empate';
+}
+const {data:partido,error} = await sb.from('partidos').insert({jugador1_id:j1,jugador2_id:j2,sets,ganador_id:ganadorId,estado,fecha,hora:hora||null,comentario:comentario||null}).select().single();
+if(error) return showMsg('Error: '+error.message,false);
+const ranking = await getRanking();
+const posJ1 = ranking.find(e=>e.jugador.id===j1)?.pos||6;
+const posJ2 = ranking.find(e=>e.jugador.id===j2)?.pos||6;
+if(incompleto) {
+const p1 = document.getElementById('inc-j1-pts').value;
+const p2 = document.getElementById('inc-j2-pts').value;
+const ins=[];
+if(p1) ins.push({partido_id:partido.id,jugador_id:j1,puntos:parseInt(p1),detalle:null});
+if(p2) ins.push({partido_id:partido.id,jugador_id:j2,puntos:parseInt(p2),detalle:null});
+if(ins.length) await sb.from('puntos_partido').insert(ins);
+} else if(estado==='finalizado'&&ganadorId) {
+const perdedorId=ganadorId===j1?j2:j1;
+const posRival=ganadorId===j1?posJ2:posJ1;
+const setsGanador=ganadorId===j1?sets:sets.map(s=>({j1:s.j2,j2:s.j1}));
+const tabla=getPts(posRival);
+let bonus=0;
+setsGanador.forEach(s=>{if(s.j1===6&&s.j2===0)bonus+=tabla.bonus;});
+const puntos=tabla.partido+bonus;
+await sb.from('puntos_partido').insert([
+{partido_id:partido.id,jugador_id:ganadorId,puntos,detalle:{partido:tabla.partido,sets:0,bonus}},
+{partido_id:partido.id,jugador_id:perdedorId,puntos:0,detalle:null},
+]);
+} else if(estado==='empate') {
+const t1=getPts(posJ2), t2=getPts(posJ1);
+let b1=0,b2=0,sg1=0,sg2=0;
+sets.forEach(s=>{
+if(s.j1>s.j2)sg1++;else if(s.j2>s.j1)sg2++;
+if(s.j1===6&&s.j2===0)b1+=t1.bonus;
+if(s.j2===6&&s.j1===0)b2+=t2.bonus;
+});
+await sb.from('puntos_partido').insert([
+{partido_id:partido.id,jugador_id:j1,puntos:sg1*t1.set+b1,detalle:{partido:0,sets:sg1*t1.set,bonus:b1}},
+{partido_id:partido.id,jugador_id:j2,puntos:sg2*t2.set+b2,detalle:{partido:0,sets:sg2*t2.set,bonus:b2}},
+]);
+}
+showMsg('✓ Partido guardado');
+setTimeout(()=>setAdminVista('menu'),1500);
+}
+async function renderFormAjuste() {
+const {data:jugadores} = await sb.from('jugadores').select('*').order('nombre');
+const opts = (jugadores||[]).map(j=>`<option value="${j.id}">${j.nombre}</option>`).join('');
+document.getElementById('admin-content').innerHTML = `
+<div id="admin-msg"></div>
+<span class="back-link" onclick="setAdminVista('menu')">← Volver</span>
+<div style="font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:16px">Cargar ajuste</div>
+<div class="form-group"><label class="form-label">Jugador</label><select id="aj-jug" class="input"><option value="">Seleccionar...</option>${opts}</select></div>
+<div class="form-group"><label class="form-label">Puntos (negativo para restar)</label><input id="aj-pts" type="number" class="input" placeholder="-5"/></div>
+<div class="form-group"><label class="form-label">Motivo</label><input id="aj-mot" type="text" class="input" placeholder="ej. Llegó tarde"/></div>
+<button class="submit-btn" onclick="guardarAjuste()">Guardar ajuste</button>`;
+}
+async function guardarAjuste() {
+const jug=document.getElementById('aj-jug').value;
+const pts=document.getElementById('aj-pts').value;
+const mot=document.getElementById('aj-mot').value;
+if(!jug||!pts||!mot) return showMsg('Completá todos los campos',false);
+const {error} = await sb.from('ajustes').insert({jugador_id:jug,puntos:parseInt(pts),motivo:mot,fecha:new Date().toISOString().split('T')[0]});
+if(error) return showMsg('Error: '+error.message,false);
+showMsg('✓ Ajuste guardado');
+setTimeout(()=>setAdminVista('menu'),1500);
+}
+async function renderEliminar() {
+const {data:partidos} = await sb.from('partidos').select('*,j1:jugador1_id(nombre),j2:jugador2_id(nombre)').order('fecha',{ascending:false}).limit(20);
+document.getElementById('admin-content').innerHTML = `
+<div id="admin-msg"></div>
+<span class="back-link" onclick="setAdminVista('menu')">← Volver</span>
+<div style="font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:8px">Eliminar partido</div>
+<p style="font-size:12px;color:#9ca3af;margin-bottom:16px">Los partidos no se editan. Eliminá y volvé a cargar.</p>
+${(partidos||[]).map(p=>`
+<div class="card row">
+<div class="flex1">
+<div style="font-size:14px;font-weight:500">${p.j1?.nombre} vs ${p.j2?.nombre}</div>
+<div style="font-size:12px;color:#9ca3af">${new Date(p.fecha).toLocaleDateString('es-AR')} · ${p.sets.map(s=>`${s.j1}-${s.j2}`).join(' ')}</div>
+</div>
+<button onclick="eliminarPartido('${p.id}')" style="color:#A32D2D;background:none;border:none;font-size:20px;cursor:pointer">🗑</button>
+</div>`).join('')}`;
+}
+async function eliminarPartido(id) {
+if(!confirm('¿Eliminar este partido?')) return;
+await sb.from('partidos').delete().eq('id',id);
+showMsg('✓ Partido eliminado');
+setTimeout(()=>renderEliminar(),500);
+}
+async function renderJugadores() {
+const {data:jugadores} = await sb.from('jugadores').select('*').order('nombre');
+document.getElementById('admin-content').innerHTML = `
+<div id="admin-msg"></div>
+<span class="back-link" onclick="setAdminVista('menu')">← Volver</span>
+<div style="font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:16px">Jugadores</div>
+${(jugadores||[]).map(j=>`
+<div class="card row" style="margin-bottom:8px">
+<span class="flex1" style="font-weight:500;font-size:14px">${j.nombre}</span>
+<select onchange="cambiarEstado('${j.id}',this.value)" style="font-size:12px;border:1px solid #e5e7eb;border-radius:6px;padding:4px 8px;cursor:pointer">
+<option value="activo" ${j.estado==='activo'?'selected':''}>activo</option>
+<option value="inactivo" ${j.estado==='inactivo'?'selected':''}>inactivo</option>
+<option value="traidor" ${j.estado==='traidor'?'selected':''}>traidor</option>
+</select>
+</div>`).join('')}
+<div class="divider"></div>
+<div class="form-group"><label class="form-label">Agregar jugador nuevo</label>
+<div style="display:flex;gap:8px">
+<input id="nuevo-nombre" type="text" class="input" placeholder="Nombre" style="flex:1"/>
+<button onclick="agregarJugador()" style="background:#27500A;color:#C0DD97;border:none;border-radius:8px;padding:0 16px;font-size:13px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif">Agregar</button>
+</div>
+</div>`;
+}
+async function cambiarEstado(id, estado) {
+await sb.from('jugadores').update({estado}).eq('id',id);
+showMsg('✓ Estado actualizado');
+}
+async function agregarJugador() {
+const nombre = document.getElementById('nuevo-nombre').value.trim();
+if(!nombre) return showMsg('Ingresá un nombre',false);
+const {error} = await sb.from('jugadores').insert({nombre,estado:'activo'});
+if(error) return showMsg('Error: '+error.message,false);
+showMsg('✓ Jugador agregado');
+setTimeout(()=>renderJugadores(),500);
+}
+render();
+</script>
+</body>
+</html>
