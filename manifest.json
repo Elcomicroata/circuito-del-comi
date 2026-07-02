@@ -1,0 +1,21 @@
+{
+  "name": "El Circuito del Comi",
+  "short_name": "Circuito del Comi",
+  "description": "Ranking del circuito de tenis",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#27500A",
+  "theme_color": "#27500A",
+  "icons": [
+    {
+      "src": "/icono_comi.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icono_comi.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
