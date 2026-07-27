@@ -110,7 +110,9 @@ const TABLA = [
 {partido:3,set:1,bonus:1},
 ];
 function getPts(pos) { return TABLA[Math.min(pos-1,5)]; }
-let state = { screen: 'home', tab: 'home', playerTab: 'rivals', currentPlayer: null, currentH2H: null, adminVista: 'menu', authed: false, fotosAuthed: false, lightboxFoto: null };
+const CIERRE_MES_MIN = '2026-08';
+function mesAnteriorStr() { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth()-1); const mes = d.toISOString().slice(0,7); return mes < CIERRE_MES_MIN ? CIERRE_MES_MIN : mes; }
+let state = { screen: 'home', tab: 'home', playerTab: 'rivals', currentPlayer: null, currentH2H: null, adminVista: 'menu', authed: false, fotosAuthed: false, lightboxFoto: null, cierreMes: mesAnteriorStr(), cierrePreview: [] };
 async function getRanking() {
 const {data: jugadores} = await sb.from('jugadores').select('*').neq('estado','traidor');
 if (!jugadores) return [];
@@ -499,6 +501,7 @@ el.innerHTML = `
 <button class="admin-btn" onclick="setAdminVista('ajuste')"><span class="admin-icon">⇅</span>Cargar ajuste</button>
 <button class="admin-btn" onclick="setAdminVista('eliminar')"><span class="admin-icon">🗑</span>Eliminar partido</button>
 <button class="admin-btn" onclick="setAdminVista('jugadores')"><span class="admin-icon">👥</span>Jugadores</button>
+<button class="admin-btn" onclick="setAdminVista('cierre')"><span class="admin-icon">📅</span>Cierre de mes</button>
 </div>`;
 } else if (state.adminVista==='partido') {
 renderFormPartido();
@@ -508,6 +511,8 @@ renderFormAjuste();
 renderEliminar();
 } else if (state.adminVista==='jugadores') {
 renderJugadores();
+} else if (state.adminVista==='cierre') {
+renderCierre();
 }
 }
 function checkPwd() {
@@ -698,6 +703,64 @@ ${(jugadores||[]).map(j=>`
 async function cambiarEstado(id, estado) {
 await sb.from('jugadores').update({estado}).eq('id',id);
 showMsg('✓ Estado actualizado');
+}
+async function renderCierre() {
+document.getElementById('admin-content').innerHTML = `
+<div id="admin-msg"></div>
+<span class="back-link" onclick="setAdminVista('menu')">← Volver</span>
+<div style="font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:8px">Cierre de mes</div>
+<p style="font-size:12px;color:#9ca3af;margin-bottom:16px">Descuenta el 10% de los puntos acumulados a todos los jugadores. El que no jugó ningún partido finalizado o empatado en el mes elegido pierde un 10% adicional (20% en total). Se aplica como un ajuste, no se tocan los partidos. Disponible desde agosto 2026.</p>
+<div class="form-group"><label class="form-label">Mes a cerrar</label><input id="cierre-mes" type="month" class="input" min="${CIERRE_MES_MIN}" value="${state.cierreMes}" onchange="state.cierreMes=(this.value<CIERRE_MES_MIN?CIERRE_MES_MIN:this.value); renderCierre();"/></div>
+<div id="cierre-preview"><div class="loading">Calculando...</div></div>`;
+await cargarPreviewCierre();
+}
+async function cargarPreviewCierre() {
+const mes = state.cierreMes;
+const motivoBase = `Cierre mensual ${mes}`;
+const {data: yaAplicado} = await sb.from('ajustes').select('id').ilike('motivo', `${motivoBase}%`).limit(1);
+const ranking = await getRanking();
+const [y,m] = mes.split('-').map(Number);
+const inicio = `${mes}-01`;
+const fin = new Date(y, m, 0).toISOString().split('T')[0];
+const preview = [];
+for (const e of ranking) {
+const {data: jugados} = await sb.from('partidos').select('id').in('estado',['finalizado','empate']).or(`jugador1_id.eq.${e.jugador.id},jugador2_id.eq.${e.jugador.id}`).gte('fecha',inicio).lte('fecha',fin).limit(1);
+const jugo = (jugados||[]).length>0;
+const factor = jugo?0.10:0.20;
+const descuento = Math.round(e.puntos*factor);
+preview.push({jugador:e.jugador, puntos:e.puntos, jugo, descuento});
+}
+state.cierrePreview = preview;
+const el = document.getElementById('cierre-preview');
+if (!el) return;
+const tabla = preview.map(p=>`
+<div class="card row">
+<div class="flex1">
+<div style="font-size:14px;font-weight:500">${p.jugador.nombre}</div>
+<div style="font-size:11px;color:#9ca3af">${p.jugo?'Jugó este mes · -10%':'No jugó · -20% (10% + 10%)'}</div>
+</div>
+<div style="text-align:right">
+<div style="font-size:13px;color:#9ca3af">${p.puntos} pts</div>
+<div style="font-size:13px;font-weight:500;color:#A32D2D">-${p.descuento}</div>
+</div>
+</div>`).join('');
+if (yaAplicado && yaAplicado.length) {
+el.innerHTML = `<div class="msg err">⚠️ Ya se aplicó un cierre para ${mes}. Si confirmás de nuevo, el descuento se va a duplicar.</div>${tabla}<button class="submit-btn" style="background:#A32D2D" onclick="confirmarCierre()">Aplicar de todas formas</button>`;
+} else {
+el.innerHTML = `${tabla}<button class="submit-btn" onclick="confirmarCierre()">Confirmar cierre de ${mes}</button>`;
+}
+}
+async function confirmarCierre() {
+const mes = state.cierreMes;
+const preview = state.cierrePreview||[];
+const fecha = new Date().toISOString().split('T')[0];
+const ins = preview.filter(p=>p.descuento!==0).map(p=>({jugador_id:p.jugador.id, puntos:-p.descuento, motivo:`Cierre mensual ${mes}${p.jugo?'':' (inactivo)'}`, fecha}));
+if (ins.length) {
+const {error} = await sb.from('ajustes').insert(ins);
+if (error) return showMsg('Error: '+error.message,false);
+}
+showMsg('✓ Cierre de mes aplicado');
+setTimeout(()=>setAdminVista('menu'),1500);
 }
 async function agregarJugador() {
 const nombre = document.getElementById('nuevo-nombre').value.trim();
