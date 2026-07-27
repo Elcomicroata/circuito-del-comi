@@ -535,9 +535,9 @@ document.getElementById('admin-content').innerHTML = `
 <div class="form-group"><label class="form-label">Jugador 1</label><select id="pj1" class="input"><option value="">Seleccionar...</option>${opts}</select></div>
 <div class="form-group"><label class="form-label">Jugador 2</label><select id="pj2" class="input"><option value="">Seleccionar...</option>${opts}</select></div>
 <div class="divider"></div>
-<div class="form-group"><label class="form-label">Set 1</label><div class="set-row"><input id="s1j1" type="number" min="0" max="7" class="set-input"/><span class="sep">–</span><input id="s1j2" type="number" min="0" max="7" class="set-input"/></div></div>
-<div class="form-group"><label class="form-label">Set 2</label><div class="set-row"><input id="s2j1" type="number" min="0" max="7" class="set-input"/><span class="sep">–</span><input id="s2j2" type="number" min="0" max="7" class="set-input"/></div></div>
-<div class="form-group"><label class="form-label">Set 3 (opcional)</label><div class="set-row"><input id="s3j1" type="number" min="0" max="7" class="set-input" placeholder="-"/><span class="sep">–</span><input id="s3j2" type="number" min="0" max="7" class="set-input" placeholder="-"/></div></div>
+<div class="form-group"><label class="form-label">Set 1</label><div class="set-row"><input id="s1j1" type="number" min="0" max="7" class="set-input" oninput="recalcIncompletoPuntos()"/><span class="sep">–</span><input id="s1j2" type="number" min="0" max="7" class="set-input" oninput="recalcIncompletoPuntos()"/></div></div>
+<div class="form-group"><label class="form-label">Set 2</label><div class="set-row"><input id="s2j1" type="number" min="0" max="7" class="set-input" oninput="recalcIncompletoPuntos()"/><span class="sep">–</span><input id="s2j2" type="number" min="0" max="7" class="set-input" oninput="recalcIncompletoPuntos()"/></div></div>
+<div class="form-group"><label class="form-label">Set 3 (opcional)</label><div class="set-row"><input id="s3j1" type="number" min="0" max="7" class="set-input" placeholder="-" oninput="recalcIncompletoPuntos()"/><span class="sep">–</span><input id="s3j2" type="number" min="0" max="7" class="set-input" placeholder="-" oninput="recalcIncompletoPuntos()"/></div></div>
 <div class="divider"></div>
 <div class="form-group"><label class="form-label">Fecha *</label><input id="pfecha" type="date" class="input" value="${new Date().toISOString().split('T')[0]}"/></div>
 <div class="form-group"><label class="form-label">Hora (opcional)</label><input id="phora" type="time" class="input"/></div>
@@ -560,11 +560,40 @@ const l1 = document.getElementById('inc-j1-label');
 const l2 = document.getElementById('inc-j2-label');
 if(l1) l1.textContent=n1;
 if(l2) l2.textContent=n2;
+recalcIncompletoPuntos();
 }
 }
 function toggleIncompleto() {
 const checked = document.getElementById('pinc').checked;
 document.getElementById('incompleto-box').style.display = checked?'block':'none';
+if (checked) recalcIncompletoPuntos();
+}
+async function recalcIncompletoPuntos() {
+const incEl = document.getElementById('pinc');
+if (!incEl || !incEl.checked) return;
+const j1 = document.getElementById('pj1').value;
+const j2 = document.getElementById('pj2').value;
+if (!j1 || !j2 || j1===j2) return;
+const s1j1=document.getElementById('s1j1').value, s1j2=document.getElementById('s1j2').value;
+const s2j1=document.getElementById('s2j1').value, s2j2=document.getElementById('s2j2').value;
+const s3j1=document.getElementById('s3j1').value, s3j2=document.getElementById('s3j2').value;
+const sets=[];
+if(s1j1!==''&&s1j2!=='') sets.push({j1:parseInt(s1j1),j2:parseInt(s1j2)});
+if(s2j1!==''&&s2j2!=='') sets.push({j1:parseInt(s2j1),j2:parseInt(s2j2)});
+if(s3j1!==''&&s3j2!=='') sets.push({j1:parseInt(s3j1),j2:parseInt(s3j2)});
+const ranking = await getRanking();
+const posJ1 = ranking.find(e=>e.jugador.id===j1)?.pos||6;
+const posJ2 = ranking.find(e=>e.jugador.id===j2)?.pos||6;
+const t1 = getPts(posJ2), t2 = getPts(posJ1);
+let p1=0, p2=0;
+sets.forEach(s=>{
+if(s.j1>s.j2){ p1+=t1.set; if(s.j1===6&&s.j2===0) p1+=t1.bonus; }
+else if(s.j2>s.j1){ p2+=t2.set; if(s.j2===6&&s.j1===0) p2+=t2.bonus; }
+});
+const inj1 = document.getElementById('inc-j1-pts');
+const inj2 = document.getElementById('inc-j2-pts');
+if (inj1 && document.activeElement!==inj1) inj1.value = p1;
+if (inj2 && document.activeElement!==inj2) inj2.value = p2;
 }
 async function guardarPartido() {
 const j1 = document.getElementById('pj1').value;
@@ -584,11 +613,13 @@ const incompleto = document.getElementById('pinc').checked;
 const hora = document.getElementById('phora').value;
 const comentario = document.getElementById('pcom').value;
 let estado='finalizado', ganadorId=null;
-if(incompleto) {
-estado='incompleto';
-} else {
 let sj1=0,sj2=0;
 sets.forEach(s=>{if(s.j1>s.j2)sj1++;else if(s.j2>s.j1)sj2++;});
+if(incompleto) {
+if(sj1>sj2){estado='finalizado';ganadorId=j1;}
+else if(sj2>sj1){estado='finalizado';ganadorId=j2;}
+else estado='empate';
+} else {
 if(sj1>sj2){estado='finalizado';ganadorId=j1;}
 else if(sj2>sj1){estado='finalizado';ganadorId=j2;}
 else estado='empate';
