@@ -110,6 +110,12 @@ const TABLA = [
 {partido:3,set:1,bonus:1},
 ];
 function getPts(pos) { return TABLA[Math.min(pos-1,5)]; }
+function formatSets(sets, swap) {
+return sets.map(s=>{
+const a = swap?s.j2:s.j1, b = swap?s.j1:s.j2;
+return s.incompleto?`(${a}-${b})`:`${a}-${b}`;
+}).join(' ');
+}
 const CIERRE_MES_MIN = '2026-08';
 function mesAnteriorStr() { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth()-1); const mes = d.toISOString().slice(0,7); return mes < CIERRE_MES_MIN ? CIERRE_MES_MIN : mes; }
 let state = { screen: 'home', tab: 'home', playerTab: 'rivals', currentPlayer: null, currentH2H: null, adminVista: 'menu', authed: false, fotosAuthed: false, lightboxFoto: null, cierreMes: mesAnteriorStr(), cierrePreview: [] };
@@ -176,7 +182,7 @@ ${(partidos||[]).map(p=>`
 <div class="card">
 <div class="row">
 <span class="flex1" style="font-weight:500;font-size:14px">${p.j1?.nombre}</span>
-<span class="match-score">${p.sets.map(s=>`${s.j1}-${s.j2}`).join(' ')}</span>
+<span class="match-score">${formatSets(p.sets)}</span>
 <span class="flex1" style="font-weight:500;font-size:14px;text-align:right">${p.j2?.nombre}</span>
 </div>
 <div class="match-meta">
@@ -268,7 +274,7 @@ const pg = p.puntos_partido?.find(pp=>pp.jugador_id===p.ganador_id);
 return `<div class="card">
 <div class="row" style="font-size:14px;font-weight:500;margin-bottom:4px">
 <span class="flex1">${p.j1?.nombre}</span>
-<span class="match-score">${p.sets.map(s=>`${s.j1}-${s.j2}`).join(' ')}</span>
+<span class="match-score">${formatSets(p.sets)}</span>
 <span class="flex1" style="text-align:right">${p.j2?.nombre}</span>
 </div>
 <div class="match-meta">
@@ -325,7 +331,8 @@ const tabContent = state.playerTab==='rivals'
 <div class="rival-record"><span style="color:#3B6D11">${r.w}</span>-<span style="color:#A32D2D">${r.l}</span>-<span style="color:#BA7517">${r.e}</span></div>
 <span style="color:#d1d5db;margin-left:4px">›</span>
 </div>`).join('')
-: (partidos||[]).map(p=>{
+: state.playerTab==='matches'
+? (partidos||[]).map(p=>{
 const esJ1 = p.jugador1_id===id;
 const rival = esJ1?p.j2:p.j1;
 const gano = p.ganador_id===id;
@@ -333,7 +340,7 @@ const empato = p.estado==='empate';
 return `<div class="card">
 <div class="row" style="font-size:14px;font-weight:500;margin-bottom:4px">
 <span class="flex1 victory">${jugador.nombre}</span>
-<span class="match-score">${p.sets.map(s=>esJ1?`${s.j1}-${s.j2}`:`${s.j2}-${s.j1}`).join(' ')}</span>
+<span class="match-score">${formatSets(p.sets, !esJ1)}</span>
 <span class="flex1" style="text-align:right">${rival?.nombre}</span>
 </div>
 <div class="match-meta">
@@ -341,7 +348,8 @@ return `<div class="card">
 <span class="${gano?'victory':empato?'draw':'defeat'}">${gano?'Victoria':empato?'Empate':'Derrota'}</span>
 </div>
 </div>`;
-}).join('');
+}).join('')
+: await renderMensualTab(id);
 root.innerHTML = `
 <div class="header-bar">
 <button class="back-btn" onclick="goHome()">←</button>
@@ -359,6 +367,7 @@ root.innerHTML = `
 <div style="display:flex;gap:0;margin-bottom:14px;border-bottom:1px solid #f3f4f6">
 <button onclick="switchPlayerTab('rivals')" style="flex:1;padding:10px;font-size:12px;text-align:center;cursor:pointer;background:none;border:none;border-bottom:2px solid ${state.playerTab==='rivals'?'#639922':'transparent'};color:${state.playerTab==='rivals'?'#3B6D11':'#9ca3af'};font-weight:${state.playerTab==='rivals'?'500':'400'};font-family:'DM Sans',sans-serif">vs Rivales</button>
 <button onclick="switchPlayerTab('matches')" style="flex:1;padding:10px;font-size:12px;text-align:center;cursor:pointer;background:none;border:none;border-bottom:2px solid ${state.playerTab==='matches'?'#639922':'transparent'};color:${state.playerTab==='matches'?'#3B6D11':'#9ca3af'};font-weight:${state.playerTab==='matches'?'500':'400'};font-family:'DM Sans',sans-serif">Partidos</button>
+<button onclick="switchPlayerTab('mensual')" style="flex:1;padding:10px;font-size:12px;text-align:center;cursor:pointer;background:none;border:none;border-bottom:2px solid ${state.playerTab==='mensual'?'#639922':'transparent'};color:${state.playerTab==='mensual'?'#3B6D11':'#9ca3af'};font-weight:${state.playerTab==='mensual'?'500':'400'};font-family:'DM Sans',sans-serif">Mensual</button>
 </div>
 ${tabContent}
 </div>`;
@@ -366,6 +375,135 @@ ${tabContent}
 async function switchPlayerTab(tab) {
 state.playerTab = tab;
 await renderPlayer();
+}
+async function renderMensualTab(id) {
+const [{data: todosJugadores}, {data: todosPartidos}, {data: todosPuntos}, {data: todosAjustes}] = await Promise.all([
+sb.from('jugadores').select('*').neq('estado','traidor').order('nombre'),
+sb.from('partidos').select('id,jugador1_id,jugador2_id,sets,fecha'),
+sb.from('puntos_partido').select('jugador_id,puntos,partido_id'),
+sb.from('ajustes').select('jugador_id,puntos,fecha'),
+]);
+const partidoFecha = {};
+(todosPartidos||[]).forEach(p=>{ partidoFecha[p.id]=p.fecha; });
+const meses = {};
+(todosPartidos||[]).forEach(p=>{
+if(p.jugador1_id!==id && p.jugador2_id!==id) return;
+const esJ1 = p.jugador1_id===id;
+const mk = p.fecha.slice(0,7);
+if(!meses[mk]) meses[mk]={setsG:0,setsP:0,ptsPartidos:0,ptsAjustes:0};
+(p.sets||[]).forEach(s=>{
+if(s.incompleto) return;
+const mine=esJ1?s.j1:s.j2, rival=esJ1?s.j2:s.j1;
+if(mine>rival) meses[mk].setsG++;
+else if(rival>mine) meses[mk].setsP++;
+});
+});
+(todosPuntos||[]).forEach(pp=>{
+if(pp.jugador_id!==id) return;
+const fecha=partidoFecha[pp.partido_id];
+if(!fecha) return;
+const mk=fecha.slice(0,7);
+if(!meses[mk]) meses[mk]={setsG:0,setsP:0,ptsPartidos:0,ptsAjustes:0};
+meses[mk].ptsPartidos+=pp.puntos;
+});
+(todosAjustes||[]).forEach(a=>{
+if(a.jugador_id!==id) return;
+const mk=a.fecha.slice(0,7);
+if(!meses[mk]) meses[mk]={setsG:0,setsP:0,ptsPartidos:0,ptsAjustes:0};
+meses[mk].ptsAjustes+=a.puntos;
+});
+const mesesList = Object.keys(meses).sort().reverse();
+let allMonthsSet = new Set();
+(todosPartidos||[]).forEach(p=>allMonthsSet.add(p.fecha.slice(0,7)));
+(todosAjustes||[]).forEach(a=>allMonthsSet.add(a.fecha.slice(0,7)));
+let chartHtml = '<p style="font-size:13px;color:#9ca3af">Sin datos suficientes para el gráfico</p>';
+if (allMonthsSet.size>0) {
+const sortedMonths = Array.from(allMonthsSet).sort();
+const startMk = sortedMonths[0];
+const hoyMk = new Date().toISOString().slice(0,7);
+const fullMonths = [];
+let [y,m] = startMk.split('-').map(Number);
+const [yEnd,mEnd] = hoyMk.split('-').map(Number);
+while (y<yEnd || (y===yEnd && m<=mEnd)) {
+fullMonths.push(`${y}-${String(m).padStart(2,'0')}`);
+m++; if(m>12){m=1;y++;}
+}
+const deltasPorJugador = {};
+(todosJugadores||[]).forEach(j=>{ deltasPorJugador[j.id]={}; });
+(todosPuntos||[]).forEach(pp=>{
+const fecha=partidoFecha[pp.partido_id];
+if(!fecha || !deltasPorJugador[pp.jugador_id]) return;
+const mk=fecha.slice(0,7);
+deltasPorJugador[pp.jugador_id][mk]=(deltasPorJugador[pp.jugador_id][mk]||0)+pp.puntos;
+});
+(todosAjustes||[]).forEach(a=>{
+if(!deltasPorJugador[a.jugador_id]) return;
+const mk=a.fecha.slice(0,7);
+deltasPorJugador[a.jugador_id][mk]=(deltasPorJugador[a.jugador_id][mk]||0)+a.puntos;
+});
+const colores = ['#27500A','#639922','#BA7517','#A32D2D','#1D9E75','#9333EA','#0891B2','#DB2777'];
+const series = (todosJugadores||[]).map((j,i)=>{
+let acc=0;
+const puntosMes = fullMonths.map(mk=>{ acc+=(deltasPorJugador[j.id][mk]||0); return acc; });
+return {jugador:j, color:colores[i%colores.length], data:puntosMes};
+});
+chartHtml = renderEvolucionChart(fullMonths, series, id);
+}
+const nombresMes = {'01':'ene','02':'feb','03':'mar','04':'abr','05':'may','06':'jun','07':'jul','08':'ago','09':'sep','10':'oct','11':'nov','12':'dic'};
+const tabla = mesesList.map(mk=>{
+const [y,m] = mk.split('-');
+const d = meses[mk];
+const total = d.ptsPartidos + d.ptsAjustes;
+return `<div class="card">
+<div class="row" style="margin-bottom:6px">
+<span class="flex1" style="font-weight:500;font-size:14px;text-transform:capitalize">${nombresMes[m]} ${y}</span>
+<span style="font-weight:500;font-size:15px;color:${total>=0?'#3B6D11':'#A32D2D'}">${total>=0?'+':''}${total} pts</span>
+</div>
+<div class="match-meta" style="margin-top:0">
+<span><span style="color:#3B6D11">${d.setsG}</span> sets ganados · <span style="color:#A32D2D">${d.setsP}</span> perdidos</span>
+</div>
+<div style="font-size:11px;color:#9ca3af;margin-top:4px">Puntos de partidos: ${d.ptsPartidos>=0?'+':''}${d.ptsPartidos}${d.ptsAjustes!==0?` · Ajustes: ${d.ptsAjustes>=0?'+':''}${d.ptsAjustes}`:''}</div>
+</div>`;
+}).join('');
+return `
+<div class="section-label">Evolución de puntos · todos los jugadores</div>
+${chartHtml}
+<div class="section-label">Resumen mensual</div>
+${mesesList.length===0?'<p style="font-size:13px;color:#9ca3af">Sin datos aún</p>':tabla}
+`;
+}
+function renderEvolucionChart(meses, series, highlightId) {
+const W=340, H=160, padL=34, padR=10, padT=10, padB=20;
+const plotW = W-padL-padR, plotH = H-padT-padB;
+let allVals = [0];
+series.forEach(s=>s.data.forEach(v=>allVals.push(v)));
+const yMin = Math.min(0, ...allVals);
+const yMax = Math.max(1, ...allVals);
+const xStep = meses.length>1 ? plotW/(meses.length-1) : 0;
+const yScale = v => padT + plotH - ((v-yMin)/((yMax-yMin)||1))*plotH;
+const xScale = i => padL + i*xStep;
+const lines = series.map(s=>{
+const pts = s.data.map((v,i)=>`${xScale(i).toFixed(1)},${yScale(v).toFixed(1)}`).join(' ');
+const isMe = s.jugador.id===highlightId;
+return `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="${isMe?2.5:1.5}" opacity="${isMe?1:0.5}"/>`;
+}).join('');
+const y0 = yScale(0);
+const ejeZero = yMin<0 ? `<line x1="${padL}" y1="${y0.toFixed(1)}" x2="${W-padR}" y2="${y0.toFixed(1)}" stroke="#e5e7eb" stroke-width="1"/>` : '';
+const nombresMes = {'01':'ene','02':'feb','03':'mar','04':'abr','05':'may','06':'jun','07':'jul','08':'ago','09':'sep','10':'oct','11':'nov','12':'dic'};
+const idxs = meses.length<=3 ? meses.map((_,i)=>i) : [0, Math.floor((meses.length-1)/2), meses.length-1];
+const labels = idxs.map(i=>{
+const [,m]=meses[i].split('-');
+return `<text x="${xScale(i).toFixed(1)}" y="${H-4}" font-size="9" fill="#9ca3af" text-anchor="middle">${nombresMes[m]}</text>`;
+}).join('');
+const legend = series.map(s=>`<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:${s.jugador.id===highlightId?'#111':'#9ca3af'};font-weight:${s.jugador.id===highlightId?'600':'400'};margin-right:10px;margin-bottom:4px"><span style="width:8px;height:8px;border-radius:50%;background:${s.color};display:inline-block"></span>${s.jugador.nombre}</span>`).join('');
+return `<div class="card" style="padding:12px">
+<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">
+${ejeZero}
+${lines}
+${labels}
+</svg>
+<div style="margin-top:10px;display:flex;flex-wrap:wrap">${legend}</div>
+</div>`;
 }
 async function openH2H(id1, id2) {
 state.screen = 'h2h';
@@ -402,7 +540,7 @@ const esJ1 = p.jugador1_id===id1;
 return `<div class="card">
 <div class="row" style="font-size:14px;font-weight:500;margin-bottom:4px">
 <span class="flex1">${j1?.nombre}</span>
-<span class="match-score">${p.sets.map(s=>esJ1?`${s.j1}-${s.j2}`:`${s.j2}-${s.j1}`).join(' ')}</span>
+<span class="match-score">${formatSets(p.sets, !esJ1)}</span>
 <span class="flex1" style="text-align:right">${j2?.nombre}</span>
 </div>
 <div class="match-meta"><span>${new Date(p.fecha).toLocaleDateString('es-AR')}</span><span class="match-winner">${p.estado==='empate'?'Empate':p.g?.nombre+' ganó'}</span></div>
@@ -536,8 +674,21 @@ document.getElementById('admin-content').innerHTML = `
 <div class="form-group"><label class="form-label">Jugador 2</label><select id="pj2" class="input"><option value="">Seleccionar...</option>${opts}</select></div>
 <div class="divider"></div>
 <div class="form-group"><label class="form-label">Set 1</label><div class="set-row"><input id="s1j1" type="number" min="0" max="7" class="set-input" oninput="recalcIncompletoPuntos()"/><span class="sep">–</span><input id="s1j2" type="number" min="0" max="7" class="set-input" oninput="recalcIncompletoPuntos()"/></div></div>
-<div class="form-group"><label class="form-label">Set 2</label><div class="set-row"><input id="s2j1" type="number" min="0" max="7" class="set-input" oninput="recalcIncompletoPuntos()"/><span class="sep">–</span><input id="s2j2" type="number" min="0" max="7" class="set-input" oninput="recalcIncompletoPuntos()"/></div></div>
-<div class="form-group"><label class="form-label">Set 3 (opcional)</label><div class="set-row"><input id="s3j1" type="number" min="0" max="7" class="set-input" placeholder="-" oninput="recalcIncompletoPuntos()"/><span class="sep">–</span><input id="s3j2" type="number" min="0" max="7" class="set-input" placeholder="-" oninput="recalcIncompletoPuntos()"/></div></div>
+<div class="form-group"><label class="form-label">Set 2</label><div class="set-row"><input id="s2j1" type="number" min="0" max="7" class="set-input" oninput="recalcIncompletoPuntos()"/><span class="sep">–</span><input id="s2j2" type="number" min="0" max="7" class="set-input" oninput="recalcIncompletoPuntos()"/></div><label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#9ca3af;cursor:pointer;margin-top:6px"><input type="checkbox" id="s2parcial" onchange="toggleSetParcial(2)"/> este set no se completó</label>
+<div id="s2manual-box" style="display:none;background:#FAEEDA;border-radius:8px;padding:10px 12px;margin-top:6px">
+<div style="font-size:11px;color:#BA7517;margin-bottom:6px">Puntos extra para este set (opcional)</div>
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span id="s2manual-j1-label" style="font-size:12px;min-width:70px">J1</span><input id="s2manual-j1" type="number" class="set-input" placeholder="0"/></div>
+<div style="display:flex;align-items:center;gap:8px"><span id="s2manual-j2-label" style="font-size:12px;min-width:70px">J2</span><input id="s2manual-j2" type="number" class="set-input" placeholder="0"/></div>
+</div>
+</div>
+<div class="form-group"><label class="form-label">Set 3 (opcional)</label><div class="set-row"><input id="s3j1" type="number" min="0" max="7" class="set-input" placeholder="-" oninput="recalcIncompletoPuntos()"/><span class="sep">–</span><input id="s3j2" type="number" min="0" max="7" class="set-input" placeholder="-" oninput="recalcIncompletoPuntos()"/></div><label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#9ca3af;cursor:pointer;margin-top:6px"><input type="checkbox" id="s3parcial" onchange="toggleSetParcial(3)"/> este set no se completó</label>
+<div id="s3manual-box" style="display:none;background:#FAEEDA;border-radius:8px;padding:10px 12px;margin-top:6px">
+<div style="font-size:11px;color:#BA7517;margin-bottom:6px">Puntos extra para este set (opcional)</div>
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span id="s3manual-j1-label" style="font-size:12px;min-width:70px">J1</span><input id="s3manual-j1" type="number" class="set-input" placeholder="0"/></div>
+<div style="display:flex;align-items:center;gap:8px"><span id="s3manual-j2-label" style="font-size:12px;min-width:70px">J2</span><input id="s3manual-j2" type="number" class="set-input" placeholder="0"/></div>
+</div>
+</div>
+<p style="font-size:11px;color:#9ca3af;margin-top:-6px;margin-bottom:14px">Si se cargó un solo set completo, se asignan solo los puntos de ese set (sin el extra de partido completo). Un set marcado "no se completó" no cuenta para el resultado ni se calcula solo, pero podés sumarle puntos extra a mano.</p>
 <div class="divider"></div>
 <div class="form-group"><label class="form-label">Fecha *</label><input id="pfecha" type="date" class="input" value="${new Date().toISOString().split('T')[0]}"/></div>
 <div class="form-group"><label class="form-label">Hora (opcional)</label><input id="phora" type="time" class="input"/></div>
@@ -556,12 +707,15 @@ const j1sel = document.getElementById('pj1');
 const j2sel = document.getElementById('pj2');
 const n1 = j1sel.options[j1sel.selectedIndex]?.text||'J1';
 const n2 = j2sel.options[j2sel.selectedIndex]?.text||'J2';
-const l1 = document.getElementById('inc-j1-label');
-const l2 = document.getElementById('inc-j2-label');
-if(l1) l1.textContent=n1;
-if(l2) l2.textContent=n2;
+['inc-j1-label','s2manual-j1-label','s3manual-j1-label'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent=n1; });
+['inc-j2-label','s2manual-j2-label','s3manual-j2-label'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent=n2; });
 recalcIncompletoPuntos();
 }
+}
+function toggleSetParcial(n) {
+const checked = document.getElementById('s'+n+'parcial').checked;
+document.getElementById('s'+n+'manual-box').style.display = checked?'block':'none';
+recalcIncompletoPuntos();
 }
 function toggleIncompleto() {
 const checked = document.getElementById('pinc').checked;
@@ -577,15 +731,12 @@ if (!j1 || !j2 || j1===j2) return;
 const s1j1=document.getElementById('s1j1').value, s1j2=document.getElementById('s1j2').value;
 const s2j1=document.getElementById('s2j1').value, s2j2=document.getElementById('s2j2').value;
 const s3j1=document.getElementById('s3j1').value, s3j2=document.getElementById('s3j2').value;
+const s2parcial=document.getElementById('s2parcial')?.checked;
+const s3parcial=document.getElementById('s3parcial')?.checked;
 const sets=[];
 if(s1j1!==''&&s1j2!=='') sets.push({j1:parseInt(s1j1),j2:parseInt(s1j2)});
-if(s2j1!==''&&s2j2!=='') sets.push({j1:parseInt(s2j1),j2:parseInt(s2j2)});
-if(s3j1!==''&&s3j2!=='') sets.push({j1:parseInt(s3j1),j2:parseInt(s3j2)});
-const ranking = await getRanking();
-const posJ1 = ranking.find(e=>e.jugador.id===j1)?.pos||6;
-const posJ2 = ranking.find(e=>e.jugador.id===j2)?.pos||6;
-const t1 = getPts(posJ2), t2 = getPts(posJ1);
-let p1=0, p2=0;
+if(s2j1!==''&&s2j2!==''&&!s2parcial) sets.push({j1:parseInt(s2j1),j2:parseInt(s2j2)});
+if(s3j1!==''&&s3j2!==''&&!s3parcial) sets.push({j1:parseInt(s3j1),j2:parseInt(s3j2)});
 sets.forEach(s=>{
 if(s.j1>s.j2){ p1+=t1.set; if(s.j1===6&&s.j2===0) p1+=t1.bonus; }
 else if(s.j2>s.j1){ p2+=t2.set; if(s.j2===6&&s.j1===0) p2+=t2.bonus; }
@@ -604,26 +755,24 @@ if (!fecha) return showMsg('La fecha es obligatoria',false);
 const s1j1=document.getElementById('s1j1').value, s1j2=document.getElementById('s1j2').value;
 const s2j1=document.getElementById('s2j1').value, s2j2=document.getElementById('s2j2').value;
 const s3j1=document.getElementById('s3j1').value, s3j2=document.getElementById('s3j2').value;
+const s2parcial=document.getElementById('s2parcial').checked;
+const s3parcial=document.getElementById('s3parcial').checked;
 const sets=[];
 if(s1j1!==''&&s1j2!=='') sets.push({j1:parseInt(s1j1),j2:parseInt(s1j2)});
-if(s2j1!==''&&s2j2!=='') sets.push({j1:parseInt(s2j1),j2:parseInt(s2j2)});
-if(s3j1!==''&&s3j2!=='') sets.push({j1:parseInt(s3j1),j2:parseInt(s3j2)});
+if(s2j1!==''&&s2j2!=='') sets.push(s2parcial?{j1:parseInt(s2j1),j2:parseInt(s2j2),incompleto:true}:{j1:parseInt(s2j1),j2:parseInt(s2j2)});
+if(s3j1!==''&&s3j2!=='') sets.push(s3parcial?{j1:parseInt(s3j1),j2:parseInt(s3j2),incompleto:true}:{j1:parseInt(s3j1),j2:parseInt(s3j2)});
 if(sets.length===0) return showMsg('Ingresá al menos un set',false);
 const incompleto = document.getElementById('pinc').checked;
 const hora = document.getElementById('phora').value;
 const comentario = document.getElementById('pcom').value;
+const setsCompletos = sets.filter(s=>!s.incompleto);
+if(!incompleto && setsCompletos.length===0) return showMsg('No hay ningún set completo. Tildá "Partido incompleto" para asignar puntos manualmente.',false);
 let estado='finalizado', ganadorId=null;
 let sj1=0,sj2=0;
-sets.forEach(s=>{if(s.j1>s.j2)sj1++;else if(s.j2>s.j1)sj2++;});
-if(incompleto) {
+setsCompletos.forEach(s=>{if(s.j1>s.j2)sj1++;else if(s.j2>s.j1)sj2++;});
 if(sj1>sj2){estado='finalizado';ganadorId=j1;}
 else if(sj2>sj1){estado='finalizado';ganadorId=j2;}
 else estado='empate';
-} else {
-if(sj1>sj2){estado='finalizado';ganadorId=j1;}
-else if(sj2>sj1){estado='finalizado';ganadorId=j2;}
-else estado='empate';
-}
 const {data:partido,error} = await sb.from('partidos').insert({jugador1_id:j1,jugador2_id:j2,sets,ganador_id:ganadorId,estado,fecha,hora:hora||null,comentario:comentario||null}).select().single();
 if(error) return showMsg('Error: '+error.message,false);
 const ranking = await getRanking();
@@ -636,31 +785,59 @@ const ins=[];
 if(p1) ins.push({partido_id:partido.id,jugador_id:j1,puntos:parseInt(p1),detalle:null});
 if(p2) ins.push({partido_id:partido.id,jugador_id:j2,puntos:parseInt(p2),detalle:null});
 if(ins.length) await sb.from('puntos_partido').insert(ins);
+showMsg('✓ Partido guardado');
+setTimeout(()=>setAdminVista('menu'),1500);
+return;
+}
+let pts1=0, pts2=0, det1={partido:0,sets:0,bonus:0}, det2={partido:0,sets:0,bonus:0};
+if(setsCompletos.length<2) {
+const t1=getPts(posJ2), t2=getPts(posJ1);
+let sg1=0,sg2=0;
+setsCompletos.forEach(s=>{
+if(s.j1>s.j2)sg1++;else if(s.j2>s.j1)sg2++;
+if(s.j1===6&&s.j2===0)det1.bonus+=t1.bonus;
+if(s.j2===6&&s.j1===0)det2.bonus+=t2.bonus;
+});
+det1.sets=sg1*t1.set; det2.sets=sg2*t2.set;
+pts1=det1.sets+det1.bonus; pts2=det2.sets+det2.bonus;
 } else if(estado==='finalizado'&&ganadorId) {
-const perdedorId=ganadorId===j1?j2:j1;
 const posRival=ganadorId===j1?posJ2:posJ1;
-const setsGanador=ganadorId===j1?sets:sets.map(s=>({j1:s.j2,j2:s.j1}));
+const setsGanador=ganadorId===j1?setsCompletos:setsCompletos.map(s=>({j1:s.j2,j2:s.j1}));
 const tabla=getPts(posRival);
 let bonus=0;
 setsGanador.forEach(s=>{if(s.j1===6&&s.j2===0)bonus+=tabla.bonus;});
 const puntos=tabla.partido+bonus;
-await sb.from('puntos_partido').insert([
-{partido_id:partido.id,jugador_id:ganadorId,puntos,detalle:{partido:tabla.partido,sets:0,bonus}},
-{partido_id:partido.id,jugador_id:perdedorId,puntos:0,detalle:null},
-]);
+if(ganadorId===j1){ pts1=puntos; det1={partido:tabla.partido,sets:0,bonus}; }
+else { pts2=puntos; det2={partido:tabla.partido,sets:0,bonus}; }
 } else if(estado==='empate') {
 const t1=getPts(posJ2), t2=getPts(posJ1);
-let b1=0,b2=0,sg1=0,sg2=0;
-sets.forEach(s=>{
+let sg1=0,sg2=0;
+setsCompletos.forEach(s=>{
 if(s.j1>s.j2)sg1++;else if(s.j2>s.j1)sg2++;
-if(s.j1===6&&s.j2===0)b1+=t1.bonus;
-if(s.j2===6&&s.j1===0)b2+=t2.bonus;
+if(s.j1===6&&s.j2===0)det1.bonus+=t1.bonus;
+if(s.j2===6&&s.j1===0)det2.bonus+=t2.bonus;
 });
-await sb.from('puntos_partido').insert([
-{partido_id:partido.id,jugador_id:j1,puntos:sg1*t1.set+b1,detalle:{partido:0,sets:sg1*t1.set,bonus:b1}},
-{partido_id:partido.id,jugador_id:j2,puntos:sg2*t2.set+b2,detalle:{partido:0,sets:sg2*t2.set,bonus:b2}},
-]);
+det1.sets=sg1*t1.set; det2.sets=sg2*t2.set;
+pts1=det1.sets+det1.bonus; pts2=det2.sets+det2.bonus;
 }
+if(s2parcial) {
+const e1=parseInt(document.getElementById('s2manual-j1').value)||0;
+const e2=parseInt(document.getElementById('s2manual-j2').value)||0;
+pts1+=e1; pts2+=e2;
+if(e1) det1.extra=(det1.extra||0)+e1;
+if(e2) det2.extra=(det2.extra||0)+e2;
+}
+if(s3parcial) {
+const e1=parseInt(document.getElementById('s3manual-j1').value)||0;
+const e2=parseInt(document.getElementById('s3manual-j2').value)||0;
+pts1+=e1; pts2+=e2;
+if(e1) det1.extra=(det1.extra||0)+e1;
+if(e2) det2.extra=(det2.extra||0)+e2;
+}
+await sb.from('puntos_partido').insert([
+{partido_id:partido.id,jugador_id:j1,puntos:pts1,detalle:det1},
+{partido_id:partido.id,jugador_id:j2,puntos:pts2,detalle:det2},
+]);
 showMsg('✓ Partido guardado');
 setTimeout(()=>setAdminVista('menu'),1500);
 }
@@ -697,7 +874,7 @@ ${(partidos||[]).map(p=>`
 <div class="card row">
 <div class="flex1">
 <div style="font-size:14px;font-weight:500">${p.j1?.nombre} vs ${p.j2?.nombre}</div>
-<div style="font-size:12px;color:#9ca3af">${new Date(p.fecha).toLocaleDateString('es-AR')} · ${p.sets.map(s=>`${s.j1}-${s.j2}`).join(' ')}</div>
+<div style="font-size:12px;color:#9ca3af">${new Date(p.fecha).toLocaleDateString('es-AR')} · ${formatSets(p.sets)}</div>
 </div>
 <button onclick="eliminarPartido('${p.id}')" style="color:#A32D2D;background:none;border:none;font-size:20px;cursor:pointer">🗑</button>
 </div>`).join('')}`;
